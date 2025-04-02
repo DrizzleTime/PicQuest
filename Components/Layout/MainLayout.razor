@@ -1,0 +1,22 @@
+﻿@inherits LayoutComponentBase
+
+<MudThemeProvider/>
+<MudPopoverProvider/>
+<MudDialogProvider/>
+<MudSnackbarProvider/>
+
+<MudLayout>
+    <MudAppBar Color="Color.Primary">
+        <MudText Typo="Typo.h5">
+            PicQuest
+        </MudText>
+        <MudSpacer/>
+        <a href="https://github.com/DrizzleTime/PicQuest" target="_blank">
+            <MudIconButton Icon="@Icons.Custom.Brands.GitHub" Color="Color.Default"/>
+        </a>
+    </MudAppBar>
+    <MudMainContent>
+        @Body
+    </MudMainContent>
+</MudLayout>
+

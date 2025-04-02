@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PicQuest", "PicQuest.csproj", "{D13686BE-7697-4928-A4DD-CF1A855EAA4F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D13686BE-7697-4928-A4DD-CF1A855EAA4F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D13686BE-7697-4928-A4DD-CF1A855EAA4F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D13686BE-7697-4928-A4DD-CF1A855EAA4F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D13686BE-7697-4928-A4DD-CF1A855EAA4F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
