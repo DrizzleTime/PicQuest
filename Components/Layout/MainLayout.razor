@@ -12,11 +12,19 @@
         </MudText>
         <MudSpacer/>
         <a href="https://github.com/DrizzleTime/PicQuest" target="_blank">
-            <MudIconButton Icon="@Icons.Custom.Brands.GitHub" Color="Color.Default"/>
+            <MudIconButton Icon="@Icons.Custom.Brands.GitHub" Style="color: white"/>
         </a>
     </MudAppBar>
-    <MudMainContent>
+    <MudMainContent Class="main">
         @Body
     </MudMainContent>
 </MudLayout>
+
+<style>
+    .main {
+        background: linear-gradient(135deg, #f5f7fa 0%, #eef2f7 100%);
+        padding-bottom: 2rem;
+        height: 100vh;
+    }
+</style>
 

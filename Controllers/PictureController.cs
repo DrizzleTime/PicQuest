@@ -8,9 +8,9 @@ namespace PicQuest.Controllers;
 public class PictureController(IPictureService pictureService) : ControllerBase
 {
     [HttpGet("pictures")]
-    public async Task<IActionResult> GetPictures()
+    public async Task<IActionResult> GetPictures([FromQuery] int page = 1, [FromQuery] int pageSize = 8)
     {
-        var pictures = await pictureService.GetPicturesAsync();
+        var pictures = await pictureService.GetPicturesAsync(page, pageSize);
         return Ok(pictures);
     }
 
@@ -22,7 +22,8 @@ public class PictureController(IPictureService pictureService) : ControllerBase
             
         try
         {
-            var (picture, id) = await pictureService.UploadPictureAsync(file);
+            using var stream = file.OpenReadStream();
+            var (picture, id) = await pictureService.UploadPictureAsync(file.FileName, stream, file.ContentType);
             return CreatedAtAction(nameof(GetPictures), new { id }, picture);
         }
         catch (Exception ex)
@@ -32,14 +33,14 @@ public class PictureController(IPictureService pictureService) : ControllerBase
     }
 
     [HttpGet("search")]
-    public async Task<IActionResult> SearchPicturesByText([FromQuery] string query, [FromQuery] int limit = 10)
+    public async Task<IActionResult> SearchPicturesByText([FromQuery] string query, [FromQuery] int page = 1, [FromQuery] int pageSize = 8, [FromQuery] double similarityThreshold = 0.36)
     {
         if (string.IsNullOrWhiteSpace(query))
             return BadRequest("搜索查询不能为空");
 
         try
         {
-            var neighbors = await pictureService.SearchPicturesByTextAsync(query, limit);
+            var neighbors = await pictureService.SearchPicturesByTextAsync(query, page, pageSize, similarityThreshold);
             return Ok(neighbors);
         }
         catch (Exception ex)

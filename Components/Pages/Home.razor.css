@@ -1,0 +1,137 @@
+.hero-section {
+    padding: 2rem 0;
+}
+
+::deep .main-title {
+    outline: none;
+    font-weight: 700;
+    font-size: 3.5rem;
+    background: linear-gradient(45deg, #3f51b5, #2196f3);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    font-size: 1.25rem;
+    color: #546e7a;
+}
+
+.search-upload-container {
+    background: white;
+    transition: all 0.3s ease;
+}
+
+.search-upload-container:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.action-button {
+    height: 50px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    transition: transform 0.2s;
+}
+
+.action-button:hover {
+    transform: translateY(-2px);
+}
+
+.picture-card {
+    transition: all 0.3s ease;
+    height: 100%;
+    overflow: hidden;
+}
+
+.picture-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 20px rgba(0, 0, 0, 0.15);
+}
+
+.image-hover:hover {
+    transform: scale(1.03);
+}
+
+.gallery-title {
+    font-weight: 600;
+    color: #37474f;
+    border-bottom: 2px solid #2196f3;
+    display: inline-block;
+    padding-bottom: 0.5rem;
+}
+
+.card-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.picture-description {
+    color: #546e7a;
+    margin-bottom: 0.75rem;
+}
+
+.timestamp {
+    opacity: 0.7;
+}
+
+.empty-state-container {
+    padding: 4rem 0;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 8px;
+}
+
+.empty-icon {
+    font-size: 5rem;
+    color: #b0bec5;
+}
+
+.dialog-title {
+    font-weight: 600;
+}
+
+.detail-image {
+    border-radius: 8px;
+}
+
+.detail-section {
+    background-color: #f5f7fa;
+    border-radius: 8px;
+}
+
+.section-title {
+    color: #37474f;
+}
+
+.detail-text {
+    line-height: 1.6;
+}
+
+.metadata-text {
+    color: #78909c;
+}
+
+.close-button {
+    border-radius: 30px;
+}
+
+.search-field :deep(.mud-input) {
+    height: 50px;
+}
+
+.search-field :deep(.mud-input-control) {
+    margin-top: 0;
+}
+
+.search-field :deep(.mud-input-slot) {
+    height: 50px;
+    display: flex;
+    align-items: center;
+}
+
+.similarity-threshold-panel :deep(.mud-expand-panel-header) {
+    padding: 8px 16px;
+}
+
+.similarity-threshold-panel :deep(.mud-expand-panel-content) {
+    padding: 0px 16px 16px 16px;
+}

@@ -1,0 +1,91 @@
+@using PicQuest.Models
+<MudDialog DisableSidePadding="true" Class="picture-detail-dialog">
+    <DialogContent>
+        <div class="d-flex flex-column flex-lg-row">
+            <div class="image-container">
+                <img src="@Picture.ImagePath" alt="@Picture.Name" class="detail-image" @onclick="ZoomImage"/>
+                @if (IsZoomed)
+                {
+                    <div class="zoom-overlay" @onclick="ZoomImage">
+                        <div class="zoom-container">
+                            <img src="@Picture.ImagePath" alt="@Picture.Name" class="zoomed-image"/>
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="p-4 detail-content">
+                <MudText Typo="Typo.h4" Class="mb-3 detail-title">@Picture.Name</MudText>
+                <MudPaper Elevation="0" Class="description-box mb-4">
+                    <MudText Typo="Typo.body1">@Picture.Description</MudText>
+                </MudPaper>
+
+                <MudDivider Class="my-4"/>
+
+                <div class="info-section">
+                    <MudText Typo="Typo.subtitle1" Class="info-label">
+                        <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" Class="mr-2"/>
+                        上传时间
+                    </MudText>
+                    <MudText Typo="Typo.body2"
+                             Class="mb-4 info-value">@Picture.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</MudText>
+                </div>
+
+
+                @if (IsSearchResult && Picture.Similarity != null)
+                {
+                    <MudDivider Class="my-4"/>
+                    <div class="info-section">
+                        <MudText Typo="Typo.subtitle1" Class="info-label">
+                            <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Size="Size.Small" Class="mr-2"/>
+                            相似度
+                        </MudText>
+                        <div class="d-flex align-center">
+                            <MudProgressLinear Value="@((double)Picture.Similarity * 100)" Color="GetSimilarityColor()"
+                                               Class="flex-grow-1 similarity-bar"/>
+                            <MudText Typo="Typo.h6"
+                                     Class="ml-3 similarity-value">@Math.Round((double)Picture.Similarity * 100)%
+                            </MudText>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <div class="dialog-actions-container">
+            <MudButton OnClick="Cancel" Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Close">关闭
+            </MudButton>
+        </div>
+    </DialogActions>
+</MudDialog>
+
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public PictureViewModel Picture { get; set; } = null!;
+
+    [Parameter] public bool IsSearchResult { get; set; }
+
+    private bool IsZoomed { get; set; }
+
+    private void Cancel() => MudDialog.Close();
+
+    private void ZoomImage()
+    {
+        IsZoomed = !IsZoomed;
+    }
+
+    private Color GetSimilarityColor()
+    {
+        if (Picture.Similarity == null) return Color.Primary;
+        double similarity = (double)Picture.Similarity;
+
+        if (similarity >= 0.85) return Color.Success;
+        if (similarity >= 0.60) return Color.Info;
+        if (similarity >= 0.40) return Color.Warning;
+        return Color.Error;
+    }
+
+}

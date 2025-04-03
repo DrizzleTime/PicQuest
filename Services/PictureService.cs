@@ -13,98 +13,42 @@ public class PictureService(
     EmbeddingService embeddingService)
     : IPictureService
 {
-    public async Task<IEnumerable<object>> GetPicturesAsync()
+    public async Task<PaginatedResult<PictureViewModel>> GetPicturesAsync(int page = 1, int pageSize = 8)
     {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 8;
+
         await using var dbContext = await contextFactory.CreateDbContextAsync();
-        return await dbContext.Pictures
+
+        var totalCount = await dbContext.Pictures.CountAsync();
+
+        var pictures = await dbContext.Pictures
             .OrderByDescending(p => p.CreatedAt)
-            .Take(8)
-            .Select(p => new
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(p => new PictureViewModel
             {
-                p.Id,
-                p.Name,
-                p.Path,
-                p.ThumbnailPath,
-                p.Description,
-                p.CreatedAt,
-                p.UpdatedAt
+                Id = p.Id,
+                Name = p.Name,
+                Path = p.Path,
+                ThumbnailPath = p.ThumbnailPath,
+                Description = p.Description,
+                CreatedAt = p.CreatedAt,
+                UpdatedAt = p.UpdatedAt
             })
             .ToListAsync();
+
+        return new PaginatedResult<PictureViewModel>
+        {
+            Items = pictures,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
     }
 
-    public async Task<(object Picture, int Id)> UploadPictureAsync(IFormFile file)
-    {
-        string fileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-        string thumbnailFileName =
-            $"{Path.GetFileNameWithoutExtension(fileName)}_thumb{Path.GetExtension(fileName)}";
-
-        // 按年月创建目录结构
-        string currentDate = DateTime.Now.ToString("yyyy/MM");
-        string uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "Uploads", currentDate);
-        if (!Directory.Exists(uploadsFolder))
-        {
-            Directory.CreateDirectory(uploadsFolder);
-        }
-
-        var filePath = Path.Combine(uploadsFolder, fileName);
-        var thumbnailPath = Path.Combine(uploadsFolder, thumbnailFileName);
-
-        // 保存原始图片
-        await using (var fileStream = new FileStream(filePath, FileMode.Create))
-        {
-            await file.CopyToAsync(fileStream);
-        }
-
-        // 创建并保存缩略图
-        await CreateThumbnailAsync(filePath, thumbnailPath, 500);
-
-        // 将缩略图转换为Base64并调用AI分析
-        string base64Image = await ConvertImageToBase64(thumbnailPath);
-        var (title, description) = await aiService.AnalyzeImageAsync(base64Image);
-
-        // 确定最终标题和描述
-        string finalTitle = !string.IsNullOrWhiteSpace(title) && title != "AI生成的标题"
-            ? title
-            : Path.GetFileNameWithoutExtension(file.FileName);
-
-        string finalDescription = !string.IsNullOrWhiteSpace(description) && description != "AI生成的描述"
-            ? description
-            : $"Uploaded on {DateTime.UtcNow}";
-
-        // 生成嵌入向量 - 使用标题和描述的组合
-        var combinedText = $"{finalTitle}. {finalDescription}";
-        var embedding = await embeddingService.GetEmbeddingAsync(combinedText);
-
-        // 保存到数据库 - 使用按年月组织的路径
-        await using var dbContext = await contextFactory.CreateDbContextAsync();
-        var picture = new Picture
-        {
-            Name = finalTitle,
-            Description = finalDescription,
-            Path = $"/uploads/{currentDate}/{fileName}",
-            ThumbnailPath = $"/uploads/{currentDate}/{thumbnailFileName}",
-            Embedding = new Vector(embedding)
-        };
-        dbContext.Pictures.Add(picture);
-        await dbContext.SaveChangesAsync();
-
-        // 返回不包含Embedding的图片信息
-        var pictureResponse = new
-        {
-            picture.Id,
-            picture.Name,
-            picture.Path,
-            picture.ThumbnailPath,
-            picture.Description,
-            picture.CreatedAt,
-            picture.UpdatedAt
-        };
-
-        return (pictureResponse, picture.Id);
-    }
-
-    // 添加新方法以处理从Blazor组件上传的文件
-    public async Task<(object Picture, int Id)> UploadPictureAsync(string fileName, Stream fileStream,
+    // 保留这个统一的上传方法
+    public async Task<(PictureViewModel Picture, int Id)> UploadPictureAsync(string fileName, Stream fileStream,
         string contentType)
     {
         string fileExtension = Path.GetExtension(fileName);
@@ -123,7 +67,7 @@ public class PictureService(
         var thumbnailPath = Path.Combine(uploadsFolder, thumbnailFileName);
 
         // 保存原始图片
-        using (var fileStreamOutput = new FileStream(filePath, FileMode.Create))
+        await using (var fileStreamOutput = new FileStream(filePath, FileMode.Create))
         {
             await fileStream.CopyToAsync(fileStreamOutput);
         }
@@ -165,45 +109,70 @@ public class PictureService(
         dbContext.Pictures.Add(picture);
         await dbContext.SaveChangesAsync();
 
-        // 返回不包含Embedding的图片信息
-        var pictureResponse = new
+        // 返回使用 PictureViewModel 的图片信息
+        var pictureResponse = new PictureViewModel
         {
-            picture.Id,
-            picture.Name,
-            picture.Path,
-            picture.ThumbnailPath,
-            picture.Description,
-            picture.CreatedAt,
-            picture.UpdatedAt
+            Id = picture.Id,
+            Name = picture.Name,
+            Path = picture.Path,
+            ThumbnailPath = picture.ThumbnailPath,
+            Description = picture.Description,
+            CreatedAt = picture.CreatedAt,
+            UpdatedAt = picture.UpdatedAt
         };
 
         return (pictureResponse, picture.Id);
     }
 
-    public async Task<IEnumerable<object>> SearchPicturesByTextAsync(string query, int limit = 8)
+    public async Task<PaginatedResult<PictureViewModel>> SearchPicturesByTextAsync(string query, int page = 1,
+        int pageSize = 8, double similarityThreshold = 0.36)
     {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 8;
+
         // 为搜索查询生成嵌入向量
         var queryEmbedding = await embeddingService.GetEmbeddingAsync(query);
         var queryVector = new Vector(queryEmbedding);
 
         await using var dbContext = await contextFactory.CreateDbContextAsync();
 
-        return await dbContext.Pictures
+        // 获取所有相似度高于阈值的图片
+        var allResults = await dbContext.Pictures
             .Where(p => p.Embedding != null)
-            .OrderBy(p => p.Embedding!.CosineDistance(queryVector))
-            .Take(limit)
             .Select(p => new
             {
-                p.Id,
-                p.Name,
-                p.Path,
-                p.ThumbnailPath,
-                p.Description,
-                p.CreatedAt,
-                p.UpdatedAt,
+                Picture = p,
                 Similarity = 1.0 - p.Embedding!.CosineDistance(queryVector)
             })
+            .Where(p => p.Similarity >= similarityThreshold)
+            .OrderByDescending(p => p.Similarity)
             .ToListAsync();
+
+        // 计算总数并分页
+        var totalCount = allResults.Count;
+        var paginatedResults = allResults
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select<dynamic, PictureViewModel>(r => new PictureViewModel
+            {
+                Id = r.Picture.Id,
+                Name = r.Picture.Name,
+                Path = r.Picture.Path,
+                ThumbnailPath = r.Picture.ThumbnailPath,
+                Description = r.Picture.Description,
+                CreatedAt = r.Picture.CreatedAt,
+                UpdatedAt = r.Picture.UpdatedAt,
+                Similarity = r.Similarity
+            })
+            .ToList();
+
+        return new PaginatedResult<PictureViewModel>
+        {
+            Items = paginatedResults,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
     }
 
     private async Task CreateThumbnailAsync(string originalPath, string thumbnailPath, int width)
@@ -223,7 +192,7 @@ public class PictureService(
 
     private async Task<string> ConvertImageToBase64(string imagePath)
     {
-        byte[] imageBytes = await System.IO.File.ReadAllBytesAsync(imagePath);
+        byte[] imageBytes = await File.ReadAllBytesAsync(imagePath);
         return Convert.ToBase64String(imageBytes);
     }
 }

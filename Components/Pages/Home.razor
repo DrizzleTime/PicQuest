@@ -1,10 +1,11 @@
 ﻿@page "/"
 @using PicQuest.Services
+@using PicQuest.Components.Dialogs
+@using PicQuest.Models
 @inject IPictureService PictureService
 @inject ISnackbar Snackbar
-
+@inject IDialogService DialogService
 <PageTitle>PicQuest - 图片搜索与库管理</PageTitle>
-
 <div class="background-container">
     <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-8">
         <!-- 标题和描述 -->
@@ -12,7 +13,6 @@
             <MudText Typo="Typo.h1" Class="main-title">PicQuest</MudText>
             <MudText Typo="Typo.subtitle1" Class="subtitle">基于视觉模型和向量嵌入的智能图像检索系统</MudText>
         </MudStack>
-
         <!-- 搜索和上传区域 -->
         <MudPaper Elevation="3" Class="px-4 py-6 mb-8 rounded-lg search-upload-container">
             <MudGrid Spacing="2" Class="align-center">
@@ -26,22 +26,33 @@
                                       AdornmentColor="Color.Primary"
                                       OnKeyDown="HandleKeyDown"
                                       Class="search-field"
+                                      Disabled="@_isSearching"
                                       FullWidth="true"/>
                     </div>
                 </MudItem>
                 <MudItem xs="12" md="2">
                     <MudButton Color="Color.Primary"
                                Variant="Variant.Filled"
-                               StartIcon="@Icons.Material.Filled.Search"
-                               OnClick="SearchPictures"
+                               StartIcon="@(_isSearching ? null : Icons.Material.Filled.Search)"
+                               OnClick="@(() => SearchPictures())"
                                Class="action-button"
                                Style="height: 50px;"
+                               Disabled="@(_isSearching || _isUploading)"
                                FullWidth="true">
-                        搜索
+                        @if (_isSearching)
+                        {
+                            <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                            <span class="ms-2">搜索中...</span>
+                        }
+                        else
+                        {
+                            <span>搜索</span>
+                        }
                     </MudButton>
                 </MudItem>
                 <MudItem xs="12" md="4">
-                    <InputFile id="fileInput" OnChange="OnFilesSelected" hidden multiple/>
+                    <InputFile id="fileInput" OnChange="OnFilesSelected" hidden multiple
+                               disabled="@(_isUploading || _isSearching)"/>
                     <MudButton HtmlTag="label"
                                Color="Color.Secondary"
                                StartIcon="@Icons.Material.Filled.CloudUpload"
@@ -49,13 +60,46 @@
                                Variant="Variant.Filled"
                                Class="action-button"
                                Style="height: 50px;"
+                               Disabled="@(_isUploading || _isSearching)"
                                FullWidth="true">
                         上传图片
                     </MudButton>
                 </MudItem>
+                <!-- 搜索设置 -->
+                <MudItem xs="12" Class="mt-4">
+                    <MudExpansionPanel Class="similarity-threshold-panel">
+                        <TitleContent>
+                            <div class="d-flex align-center">
+                                <MudIcon Icon="@Icons.Material.Filled.Tune" Class="mr-2"/>
+                                <MudText>高级搜索设置</MudText>
+                            </div>
+                        </TitleContent>
+                        <ChildContent>
+                            <MudGrid Class="mt-2">
+                                <MudItem xs="12" md="8">
+                                    <MudText Typo="Typo.subtitle2" Class="mb-2">
+                                        相似度门槛: @(_similarityThreshold.ToString("P0"))</MudText>
+                                    <MudSlider @bind-Value="_similarityThreshold"
+                                               Min="0" Max="1" Step="0.05"
+                                               Color="Color.Secondary"
+                                               TickMarks="true"
+                                               ValueLabel="true"/>
+                                </MudItem>
+                                <MudItem xs="12" md="4" Class="d-flex align-end">
+                                    <MudButton OnClick="ResetSimilarityThreshold"
+                                               Variant="Variant.Outlined"
+                                               Color="Color.Default"
+                                               Size="Size.Small"
+                                               Class="ml-auto mb-2">
+                                        重置为默认值
+                                    </MudButton>
+                                </MudItem>
+                            </MudGrid>
+                        </ChildContent>
+                    </MudExpansionPanel>
+                </MudItem>
             </MudGrid>
         </MudPaper>
-
         <!-- 上传状态显示 -->
         @if (_isUploading)
         {
@@ -71,15 +115,22 @@
                     (@_uploadProgress%)...@_currentFileIndex/@_totalFilesToUpload</MudText>
             </MudPaper>
         }
-
         <!-- 搜索结果或图库展示 -->
-        @if (_pictures == null)
+        @if (_isSearching)
+        {
+            <MudPaper Elevation="0" Class="d-flex flex-column align-center py-12">
+                <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" Class="mb-4"/>
+                <MudText Typo="Typo.h6">正在搜索图片...</MudText>
+                <MudText Typo="Typo.body2" Class="mt-2">根据"@_searchQuery"查找相关图片</MudText>
+            </MudPaper>
+        }
+        else if (_paginatedPictures == null)
         {
             <div class="d-flex justify-center my-12">
                 <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true"/>
             </div>
         }
-        else if (!_pictures.Any())
+        else if (!_paginatedPictures.Items.Any())
         {
             <MudPaper Elevation="0" Class="d-flex flex-column align-center py-12 empty-state-container">
                 <MudIcon Icon="@Icons.Material.Filled.ImageNotSupported" Size="Size.Large" Class="mb-4 empty-icon"/>
@@ -89,9 +140,10 @@
         }
         else
         {
-            <MudText Typo="Typo.h5" Class="mb-4 mt-6 gallery-title">@(_isSearchMode ? "搜索结果" : "图片库")</MudText>
+            <MudText Typo="Typo.h5"
+                     Class="mb-4 mt-6 gallery-title">@(_isSearchMode ? "搜索结果" : "公共图片库")</MudText>
             <MudGrid Spacing="4">
-                @foreach (var picture in _pictures)
+                @foreach (var picture in _paginatedPictures.Items)
                 {
                     <MudItem xs="12" sm="6" md="4" lg="3">
                         <MudCard Elevation="3" Class="picture-card">
@@ -99,27 +151,22 @@
                                           Height="240"
                                           Style="object-fit: cover; transition: transform 0.3s;"
                                           Class="image-hover"
-                                          @onclick="@(e => ShowImageDetails(picture))"/>
+                                          @onclick="@(_ => ShowImageDetails(picture))"/>
                             <MudCardContent>
                                 <MudText Typo="Typo.h6" Class="text-truncate card-title">@picture.Name</MudText>
                                 <MudText Typo="Typo.body2" Class="text-truncate picture-description"
                                          Style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">
                                     @picture.Description
                                 </MudText>
-
                                 @if (_isSearchMode && picture.Similarity != null)
                                 {
-                                    <div class="d-flex justify-space-between align-center mt-3">
-                                        <MudText Typo="Typo.caption" Class="mr-2">相似度:</MudText>
-                                        <MudProgressLinear Color="Color.Success"
-                                                           Value="@((double)picture.Similarity * 100)"
-                                                           Class="flex-grow-1"/>
-                                        <MudText Typo="Typo.caption" Class="ml-2 similarity-text">
-                                            @Math.Round((double)picture.Similarity * 100)%
-                                        </MudText>
-                                    </div>
+                                    <MudProgressLinear Color="Color.Success"
+                                                       Value="@((double)picture.Similarity * 100)"
+                                                       Class="flex-grow-1"/>
+                                    <MudText Typo="Typo.caption" Class="ml-2 similarity-text">
+                                        @Math.Round((double)picture.Similarity * 100)%
+                                    </MudText>
                                 }
-
                                 <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3 timestamp">
                                     上传于 @picture.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
                                 </MudText>
@@ -128,219 +175,85 @@
                     </MudItem>
                 }
             </MudGrid>
+
+            <!-- 分页控件 -->
+            <MudPaper Elevation="0" Class="d-flex justify-center mt-6 pa-4">
+                <MudPagination Count="@_paginatedPictures.TotalPages"
+                               SelectedChanged="OnPageChanged"
+                               Selected="@_currentPage"
+                               Color="Color.Primary"
+                               Size="Size.Medium"
+                               Variant="Variant.Filled"
+                               Rectangular="true"
+                               BoundaryCount="1"
+                               MiddleCount="3"
+                               ShowFirstButton="true"
+                               ShowLastButton="true"/>
+            </MudPaper>
+
+            @if (_isSearchMode)
+            {
+                <MudPaper Elevation="0" Class="d-flex justify-center mt-2 pa-4">
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Primary"
+                               OnClick="ResetSearch"
+                               StartIcon="@Icons.Material.Filled.ArrowBack">
+                        返回全部图片
+                    </MudButton>
+                </MudPaper>
+            }
         }
     </MudContainer>
 </div>
 
-<!-- 图片详情对话框 - 美化版本 -->
-@if (_selectedPicture != null)
-{
-    <MudDialog IsOpen="true"
-               Style="min-width: 80vw; max-width: 90vw;"
-               DisableSidePadding="true"
-               ContentClass="px-0"
-               CloseButton="true"
-               CloseOnEscapeKey="true"
-               CloseOnBackdropClick="true"
-               OnBackdropClick="CloseDialog">
-        <TitleContent>
-            <div class="px-4 py-2">
-                <MudText Typo="Typo.h5" Class="dialog-title">@_selectedPicture.Name</MudText>
-            </div>
-        </TitleContent>
-        <DialogContent>
-            <div class="d-flex flex-column p-4">
-                <div class="d-flex justify-center mb-5">
-                    <MudImage Src="@_selectedPicture.Path"
-                              ObjectFit="ObjectFit.Contain"
-                              Class="rounded-lg detail-image"
-                              Style="max-height: 60vh; box-shadow: 0 4px 20px rgba(0,0,0,0.1);"
-                              Alt="@_selectedPicture.Name"/>
-                </div>
-                <MudPaper Elevation="0" Class="p-4 mb-3 detail-section">
-                    <MudText Typo="Typo.h6" Class="mb-3 section-title">描述</MudText>
-                    <MudText Class="detail-text">@_selectedPicture.Description</MudText>
-                </MudPaper>
-                <MudDivider Class="my-4"/>
-                <div class="d-flex justify-space-between">
-                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="metadata-text">
-                        创建时间: @_selectedPicture.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
-                    </MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="metadata-text">
-                        最后更新: @_selectedPicture.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
-                    </MudText>
-                </div>
-            </div>
-        </DialogContent>
-        <DialogActions>
-            <MudButton Color="Color.Primary"
-                       Variant="Variant.Filled"
-                       OnClick="CloseDialog"
-                       Class="mx-4 mb-3 px-6 close-button">关闭
-            </MudButton>
-        </DialogActions>
-    </MudDialog>
-}
-
-<style>
-    .background-container {
-        background: linear-gradient(135deg, #f5f7fa 0%, #eef2f7 100%);
-        min-height: 100vh;
-        padding-bottom: 2rem;
-    }
-
-    .hero-section {
-        padding: 2rem 0;
-    }
-
-    .main-title {
-        font-weight: 700;
-        font-size: 3.5rem;
-        background: linear-gradient(45deg, #3f51b5, #2196f3);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 0.5rem;
-    }
-
-    .subtitle {
-        font-size: 1.25rem;
-        color: #546e7a;
-    }
-
-    .search-upload-container {
-        background: white;
-        transition: all 0.3s ease;
-    }
-
-    .search-upload-container:hover {
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-    }
-
-    .action-button {
-        height: 50px;
-        font-weight: 500;
-        letter-spacing: 0.5px;
-        transition: transform 0.2s;
-    }
-
-    .action-button:hover {
-        transform: translateY(-2px);
-    }
-
-    .picture-card {
-        transition: all 0.3s ease;
-        height: 100%;
-        overflow: hidden;
-    }
-
-    .picture-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 20px rgba(0, 0, 0, 0.15);
-    }
-
-    .image-hover:hover {
-        transform: scale(1.03);
-    }
-
-    .gallery-title {
-        font-weight: 600;
-        color: #37474f;
-        border-bottom: 2px solid #2196f3;
-        display: inline-block;
-        padding-bottom: 0.5rem;
-    }
-
-    .card-title {
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-    }
-
-    .picture-description {
-        color: #546e7a;
-        margin-bottom: 0.75rem;
-    }
-
-    .timestamp {
-        opacity: 0.7;
-    }
-
-    .empty-state-container {
-        padding: 4rem 0;
-        background: rgba(255, 255, 255, 0.7);
-        border-radius: 8px;
-    }
-
-    .empty-icon {
-        font-size: 5rem;
-        color: #b0bec5;
-    }
-
-    .dialog-title {
-        font-weight: 600;
-    }
-
-    .detail-image {
-        border-radius: 8px;
-    }
-
-    .detail-section {
-        background-color: #f5f7fa;
-        border-radius: 8px;
-    }
-
-    .section-title {
-        color: #37474f;
-    }
-
-    .detail-text {
-        line-height: 1.6;
-    }
-
-    .metadata-text {
-        color: #78909c;
-    }
-
-    .close-button {
-        border-radius: 30px;
-    }
-
-    .search-field :deep(.mud-input) {
-        height: 50px;
-    }
-
-    .search-field :deep(.mud-input-control) {
-        margin-top: 0;
-    }
-
-    .search-field :deep(.mud-input-slot) {
-        height: 50px;
-        display: flex;
-        align-items: center;
-    }
-</style>
-
 @code {
-    private List<dynamic>? _pictures;
     private string _searchQuery = "";
-    private dynamic? _selectedPicture;
+    private PaginatedResult<PictureViewModel>? _paginatedPictures;
     private bool _isUploading;
+    private bool _isSearching;
     private bool _isSearchMode;
     private int _uploadProgress;
     private int _currentFileIndex;
     private int _totalFilesToUpload;
+    private int _currentPage = 1;
+    private int _pageSize = 8;
     private const int MaxAllowedFiles = 20;
     private const long MaxFileSize = 10485760;
+    private double _similarityThreshold = 0.36;
+    private const double DefaultSimilarityThreshold = 0.36;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadPictures();
+        await LoadPictures(_currentPage, _pageSize);
     }
 
-    private async Task LoadPictures()
+    private async Task LoadPictures(int page = 1, int pageSize = 8)
     {
-        var result = await PictureService.GetPicturesAsync();
-        _pictures = result.ToList();
-        _isSearchMode = false;
+        try
+        {
+            _isSearching = true;
+            StateHasChanged();
+
+            var result = await PictureService.GetPicturesAsync(page, pageSize);
+            _paginatedPictures = result;
+            _isSearchMode = false;
+            _currentPage = page;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"加载图片失败: {ex.Message}", Severity.Error);
+            _paginatedPictures = new PaginatedResult<PictureViewModel>
+            {
+                Items = new List<PictureViewModel>(),
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = 0
+            };
+        }
+        finally
+        {
+            _isSearching = false;
+        }
     }
 
     private async Task OnFilesSelected(InputFileChangeEventArgs e)
@@ -362,40 +275,29 @@
 
             foreach (var file in files)
             {
-                _currentFileIndex++;
-
                 try
                 {
                     if (file.Size > MaxFileSize)
                     {
                         Snackbar.Add($"文件过大：{file.Name}", Severity.Warning);
-                        continue; // 跳过过大的文件
+                        continue;
                     }
 
-                    // 使用分块读取显示实时进度
-                    using var stream = file.OpenReadStream(maxAllowedSize: MaxFileSize);
-                    var memoryStream = new MemoryStream();
-
-                    // 每次读取的块大小
-                    byte[] buffer = new byte[16 * 1024]; // 16KB
+                    await using var stream = file.OpenReadStream(maxAllowedSize: MaxFileSize);
+                    using var memoryStream = new MemoryStream();
+                    var buffer = new byte[16 * 1024];
                     int bytesRead;
-                    long fileUploadedBytes = 0;
 
                     while ((bytesRead = await stream.ReadAsync(buffer)) != 0)
                     {
                         await memoryStream.WriteAsync(buffer.AsMemory(0, bytesRead));
-
                         // 更新当前文件和总体进度
-                        fileUploadedBytes += bytesRead;
                         uploadedBytes += bytesRead;
 
                         // 计算总体进度百分比
                         _uploadProgress = (int)((double)uploadedBytes / totalBytes * 100);
-
                         // 通知UI更新
                         StateHasChanged();
-
-                        // 给UI一个刷新的机会
                         await Task.Delay(10);
                     }
 
@@ -408,7 +310,7 @@
                     Snackbar.Add($"上传失败：{file.Name} - {ex.Message}", Severity.Error);
                 }
 
-                // 确保进度条显示当前进度
+                _currentFileIndex++;
                 _uploadProgress = (int)((double)_currentFileIndex / _totalFilesToUpload * 100);
                 StateHasChanged();
             }
@@ -420,6 +322,10 @@
                 Snackbar.Add($"成功上传 {successCount} 个图片", Severity.Success);
             }
         }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"上传过程中发生错误: {ex.Message}", Severity.Error);
+        }
         finally
         {
             _isUploading = false;
@@ -427,7 +333,7 @@
         }
     }
 
-    private async Task SearchPictures()
+    private async Task SearchPictures(int page = 1)
     {
         if (string.IsNullOrWhiteSpace(_searchQuery))
         {
@@ -435,30 +341,92 @@
             return;
         }
 
-        var result = await PictureService.SearchPicturesByTextAsync(_searchQuery);
-        _pictures = result.ToList();
-        _isSearchMode = true;
+        try
+        {
+            _isSearching = true;
+            StateHasChanged();
+
+            await Task.Delay(300);
+
+            var result = await PictureService.SearchPicturesByTextAsync(_searchQuery, page, _pageSize, _similarityThreshold);
+            _paginatedPictures = result;
+            _isSearchMode = true;
+            _currentPage = page;
+
+            if (!_paginatedPictures.Items.Any() && page == 1)
+            {
+                Snackbar.Add($"未找到与\"{_searchQuery}\"相关的图片", Severity.Info);
+            }
+            else if (page == 1)
+            {
+                Snackbar.Add($"找到 {_paginatedPictures.TotalCount} 个相关图片", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"搜索失败: {ex.Message}", Severity.Error);
+            _paginatedPictures = new PaginatedResult<PictureViewModel>
+            {
+                Items = new List<PictureViewModel>(),
+                Page = page,
+                PageSize = _pageSize,
+                TotalCount = 0
+            };
+        }
+        finally
+        {
+            _isSearching = false;
+        }
     }
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter")
+        if (e.Key == "Enter" && !_isSearching)
         {
             await SearchPictures();
         }
     }
 
-    // 简化方法参数，移除不必要的MouseEventArgs
-    private void ShowImageDetails(dynamic picture)
+    private async Task ShowImageDetails(PictureViewModel picture)
     {
-        _selectedPicture = picture;
-        StateHasChanged();
+        var parameters = new DialogParameters
+        {
+            ["Picture"] = picture,
+            ["IsSearchResult"] = _isSearchMode
+        };
+
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.ExtraLarge,
+            FullWidth = true,
+        };
+
+        await DialogService.ShowAsync<PictureDetailDialog>("图片详情", parameters, options);
     }
 
-    private void CloseDialog()
+    private void ResetSimilarityThreshold()
     {
-        _selectedPicture = null;
-        StateHasChanged();
+        _similarityThreshold = DefaultSimilarityThreshold;
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        if (page == _currentPage) return;
+
+        if (_isSearchMode)
+        {
+            await SearchPictures(page);
+        }
+        else
+        {
+            await LoadPictures(page, _pageSize);
+        }
+    }
+
+    private async Task ResetSearch()
+    {
+        _searchQuery = "";
+        await LoadPictures(1, _pageSize);
     }
 
 }

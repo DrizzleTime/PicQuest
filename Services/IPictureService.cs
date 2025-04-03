@@ -5,11 +5,9 @@ namespace PicQuest.Services;
 
 public interface IPictureService
 {
-    Task<IEnumerable<object>> GetPicturesAsync();
-    Task<(object Picture, int Id)> UploadPictureAsync(IFormFile file);
+    Task<PaginatedResult<PictureViewModel>> GetPicturesAsync(int page = 1, int pageSize = 8);
     
-    // 添加一个新方法处理从Blazor组件上传的文件
-    Task<(object Picture, int Id)> UploadPictureAsync(string fileName, Stream fileStream, string contentType);
+    Task<(PictureViewModel Picture, int Id)> UploadPictureAsync(string fileName, Stream fileStream, string contentType);
     
-    Task<IEnumerable<object>> SearchPicturesByTextAsync(string query, int limit = 8);
+    Task<PaginatedResult<PictureViewModel>> SearchPicturesByTextAsync(string query, int page = 1, int pageSize = 8, double similarityThreshold = 0.36);
 }
