@@ -30,6 +30,30 @@
                              Class="mb-4 info-value">@Picture.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</MudText>
                 </div>
 
+                <MudDivider Class="my-4"/>
+                <div class="info-section">
+                    <MudText Typo="Typo.subtitle1" Class="info-label">
+                        <MudIcon Icon="@Icons.Material.Filled.Share" Size="Size.Small" Class="mr-2"/>
+                        分享图片
+                    </MudText>
+                    <div class="share-links mt-2">
+
+                        <div class="d-flex align-center mb-2">
+                            <MudText Typo="Typo.caption" Class="mr-2 share-label">原图地址:</MudText>
+                            <MudTextField Value="@Picture.ImagePath" ReadOnly="true" Variant="Variant.Outlined"
+                                          Class="flex-grow-1"/>
+                            <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                           OnClick="@(() => CopyToClipboard(Picture.ImagePath))"/>
+                        </div>
+                        <div class="d-flex align-center">
+                            <MudText Typo="Typo.caption" Class="mr-2 share-label">缩略图地址:</MudText>
+                            <MudTextField Value="@ThumbnailLink" ReadOnly="true" Variant="Variant.Outlined"
+                                          Class="flex-grow-1"/>
+                            <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                           OnClick="@(() => CopyToClipboard(ThumbnailLink))"/>
+                        </div>
+                    </div>
+                </div>
 
                 @if (IsSearchResult && Picture.Similarity != null)
                 {
@@ -63,12 +87,19 @@
 
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
-
     [Parameter] public PictureViewModel Picture { get; set; } = null!;
-
     [Parameter] public bool IsSearchResult { get; set; }
-
     private bool IsZoomed { get; set; }
+    private string ThumbnailLink => Picture.ImagePath.Replace("/images/", "/thumbnails/");
+    [Inject] private IJSRuntime JsRuntime { get; set; } = null!;
+
+    private async Task CopyToClipboard(string text)
+    {
+        await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        Snackbar.Add("已复制到剪贴板", Severity.Success);
+    }
+
+    [Inject] private ISnackbar Snackbar { get; set; } = null!;
 
     private void Cancel() => MudDialog.Close();
 
